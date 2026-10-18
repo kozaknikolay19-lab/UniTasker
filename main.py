@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
 from database.database import engine, Base
 from routers import tasks
 
@@ -12,4 +13,4 @@ app.include_router(tasks.router)
 
 @app.get("/")
 def read_root():
-    return {"message": "Welcome to UniTasker API"}
+    return FileResponse("templates/index.html")

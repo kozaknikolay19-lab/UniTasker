@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <title>UniTasker Kanban</title>
+    <style>
+        body { font-family: 'Times New Roman', serif; background-color: #f3f4f6; margin: 0; padding: 20px; }
+        h1 { text-align: center; color: #333; }
+        .board { display: flex; gap: 20px; justify-content: center; margin-top: 20px; }
+        .column { background: #ebecf0; padding: 15px; border-radius: 8px; width: 30%; min-height: 400px; }
+        .column h3 { text-align: center; margin-top: 0; }
+        .task { background: white; padding: 15px; margin-bottom: 10px; border-radius: 5px; box-shadow: 0 1px 3px rgba(0,0,0,0.12); cursor: grab; }
+        .task:active { cursor: grabbing; }
+        .delete-btn { background: #ff4757; color: white; border: none; border-radius: 3px; cursor: pointer; padding: 5px 10px; margin-top: 10px; font-family: 'Times New Roman', serif; }
+        form { text-align: center; margin-bottom: 20px; }
+        input { padding: 10px; width: 250px; font-family: 'Times New Roman', serif; border: 1px solid #ccc; border-radius: 4px; }
+        button[type="submit"] { padding: 10px 15px; background: #2ed573; color: white; border: none; border-radius: 4px; cursor: pointer; font-family: 'Times New Roman', serif; }
+    </style>
+</head>
+<body>
+    <h1>UniTasker</h1>
+    <form id="taskForm">
+        <input type="text" id="title" placeholder="Назва нового завдання..." required>
+        <button type="submit">Додати</button>
+    </form>
+    <div class="board">
+        <div class="column" id="TODO" ondrop="drop(event)" ondragover="allowDrop(event)">
+            <h3>TODO</h3>
+        </div>
+        <div class="column" id="IN PROGRESS" ondrop="drop(event)" ondragover="allowDrop(event)">
+            <h3>IN PROGRESS</h3>
+        </div>
+        <div class="column" id="DONE" ondrop="drop(event)" ondragover="allowDrop(event)">
+            <h3>DONE</h3>
+        </div>
+    </div>
+
+    <script>
+        async function loadTasks() {
+            const res = await fetch('/tasks/');
+            const tasks = await res.json();
+            
+            ['TODO', 'IN PROGRESS', 'DONE'].forEach(status => {
+                document.getElementById(status).innerHTML = `<h3>${status}</h3>`;
+            });
+
+            tasks.forEach(task => {
+                const colId = ['TODO', 'IN PROGRESS', 'DONE'].includes(task.status) ? task.status : 'TODO';
+                const col = document.getElementById(colId);
+                
+                const div = document.createElement('div');
+                div.className = 'task';
+                div.draggable = true;
+                div.id = task.id;
+                div.ondragstart = drag;
+                div.innerHTML = `
+                    <strong>${task.title}</strong><br>
+                    <button class="delete-btn" onclick="deleteTask('${task.id}')">Видалити</button>
+                `;
+                col.appendChild(div);
+            });
+        }
+
+        document.getElementById('taskForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const title = document.getElementById('title').value;
+            await fetch('/tasks/', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({title: title})
+            });
+            document.getElementById('title').value = '';
+            loadTasks();
+        };
+
+        async function deleteTask(id) {
+            await fetch(`/tasks/${id}`, { method: 'DELETE' });
+            loadTasks();
+        }
+
+        function allowDrop(ev) { ev.preventDefault(); }
+        function drag(ev) { ev.dataTransfer.setData("text", ev.target.id); }
+
+        async function drop(ev) {
+            ev.preventDefault();
+            const taskId = ev.dataTransfer.getData("text");
+            const targetColumn = ev.target.closest('.column');
+            
+            if (!targetColumn) return;
+            targetColumn.appendChild(document.getElementById(taskId));
+            
+            await fetch(`/tasks/${taskId}`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({status: targetColumn.id})
+            });
+        }
+
+        loadTasks();
+    </script>
+</body>
+</html>

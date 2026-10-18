@@ -15,3 +15,6 @@ class TaskResponse(BaseModel):
     created_at: datetime
     class Config:
         from_attributes = True
+
+class TaskUpdate(BaseModel):
+    status: str
