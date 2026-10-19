@@ -12,7 +12,10 @@ class TaskResponse(BaseModel):
     id: str
     title: str
     status: str
+    priority: str | None = None
+    deadline: datetime | None = None
     created_at: datetime
+    
     class Config:
         from_attributes = True
 
