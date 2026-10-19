@@ -6,23 +6,39 @@
     <style>
         body { font-family: 'Times New Roman', serif; background-color: #f3f4f6; margin: 0; padding: 20px; }
         h1 { text-align: center; color: #333; }
-        .board { display: flex; gap: 20px; justify-content: center; margin-top: 20px; }
+        .controls { text-align: center; margin-bottom: 20px; }
+        .board { display: flex; gap: 20px; justify-content: center; }
         .column { background: #ebecf0; padding: 15px; border-radius: 8px; width: 30%; min-height: 400px; }
         .column h3 { text-align: center; margin-top: 0; }
-        .task { background: white; padding: 15px; margin-bottom: 10px; border-radius: 5px; box-shadow: 0 1px 3px rgba(0,0,0,0.12); cursor: grab; }
+        .task { background: white; padding: 15px; margin-bottom: 10px; border-radius: 5px; box-shadow: 0 1px 3px rgba(0,0,0,0.12); cursor: grab; position: relative; }
         .task:active { cursor: grabbing; }
-        .delete-btn { background: #ff4757; color: white; border: none; border-radius: 3px; cursor: pointer; padding: 5px 10px; margin-top: 10px; font-family: 'Times New Roman', serif; }
-        form { text-align: center; margin-bottom: 20px; }
-        input { padding: 10px; width: 250px; font-family: 'Times New Roman', serif; border: 1px solid #ccc; border-radius: 4px; }
-        button[type="submit"] { padding: 10px 15px; background: #2ed573; color: white; border: none; border-radius: 4px; cursor: pointer; font-family: 'Times New Roman', serif; }
+        .delete-btn { background: #ff4757; color: white; border: none; border-radius: 3px; cursor: pointer; padding: 5px 10px; margin-top: 10px; font-family: 'Times New Roman', serif; width: 100%; }
+        input, select { padding: 10px; font-family: 'Times New Roman', serif; border: 1px solid #ccc; border-radius: 4px; margin-right: 5px; }
+        button { padding: 10px 15px; background: #2ed573; color: white; border: none; border-radius: 4px; cursor: pointer; font-family: 'Times New Roman', serif; }
+        .export-btn { background: #3742fa; text-decoration: none; display: inline-block; margin-top: 10px; }
+        .tag { font-size: 12px; padding: 2px 6px; border-radius: 10px; color: white; display: inline-block; margin-bottom: 5px; }
     </style>
 </head>
 <body>
     <h1>UniTasker</h1>
-    <form id="taskForm">
-        <input type="text" id="title" placeholder="Назва нового завдання..." required>
-        <button type="submit">Додати</button>
-    </form>
+    
+    <div class="controls">
+        <form id="taskForm" style="display: inline-block;">
+            <input type="text" id="title" placeholder="Назва нового завдання..." required style="width: 250px;">
+            <select id="priority">
+                <option value="Низький">🟢 Низький</option>
+                <option value="Середній" selected>🟠 Середній</option>
+                <option value="Високий">🔴 Високий</option>
+            </select>
+            <input type="date" id="deadline">
+            <button type="submit">Додати</button>
+        </form>
+        <br>
+        <a href="/tasks/export/csv" class="export-btn" download>
+            <button style="background: #3742fa;">Експортувати в CSV</button>
+        </a>
+    </div>
+
     <div class="board">
         <div class="column" id="TODO" ondrop="drop(event)" ondragover="allowDrop(event)">
             <h3>TODO</h3>
@@ -48,13 +64,19 @@
                 const colId = ['TODO', 'IN PROGRESS', 'DONE'].includes(task.status) ? task.status : 'TODO';
                 const col = document.getElementById(colId);
                 
+                let priorityColor = task.priority === 'Високий' ? '#ff4757' : task.priority === 'Середній' ? '#ffa502' : '#2ed573';
+                let deadlineText = task.deadline ? new Date(task.deadline).toLocaleDateString('uk-UA') : 'Без дедлайну';
+                let priorityText = task.priority || 'Не вказано';
+
                 const div = document.createElement('div');
                 div.className = 'task';
                 div.draggable = true;
                 div.id = task.id;
                 div.ondragstart = drag;
                 div.innerHTML = `
+                    <span class="tag" style="background: ${priorityColor};">${priorityText}</span><br>
                     <strong>${task.title}</strong><br>
+                    <span style="font-size: 13px; color: #555;">⏳ Дедлайн: ${deadlineText}</span><br>
                     <button class="delete-btn" onclick="deleteTask('${task.id}')">Видалити</button>
                 `;
                 col.appendChild(div);
@@ -64,12 +86,21 @@
         document.getElementById('taskForm').onsubmit = async (e) => {
             e.preventDefault();
             const title = document.getElementById('title').value;
+            const priority = document.getElementById('priority').value;
+            const deadline = document.getElementById('deadline').value;
+
+            const payload = { title: title, priority: priority };
+            if (deadline) {
+                payload.deadline = deadline + "T00:00:00"; // Форматування дати для бази
+            }
+
             await fetch('/tasks/', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({title: title})
+                body: JSON.stringify(payload)
             });
             document.getElementById('title').value = '';
+            document.getElementById('deadline').value = '';
             loadTasks();
         };
 
@@ -85,10 +116,8 @@
             ev.preventDefault();
             const taskId = ev.dataTransfer.getData("text");
             const targetColumn = ev.target.closest('.column');
-            
             if (!targetColumn) return;
             targetColumn.appendChild(document.getElementById(taskId));
-            
             await fetch(`/tasks/${taskId}`, {
                 method: 'PUT',
                 headers: {'Content-Type': 'application/json'},

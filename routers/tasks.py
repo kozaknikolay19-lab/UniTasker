@@ -1,6 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from uuid import uuid4
+import io
+import csv
 from database.database import get_db
 from database.models import DBTask
 from database.schemas import TaskCreate, TaskResponse, TaskUpdate
@@ -43,3 +46,22 @@ def update_status(task_id: str, task_update: TaskUpdate, db: Session = Depends(g
     db_task.status = task_update.status
     db.commit()
     return {"message": "Status updated"}
+
+@router.get("/export/csv")
+def export_tasks_csv(db: Session = Depends(get_db)):
+    tasks = db.query(DBTask).all()
+    output = io.StringIO()
+    writer = csv.writer(output)
+    # Заголовки колонок у файлі
+    writer.writerow(["Назва", "Статус", "Пріоритет", "Дедлайн"])
+    
+    for task in tasks:
+        deadline_str = task.deadline.strftime("%Y-%m-%d") if task.deadline else "Немає"
+        writer.writerow([task.title, task.status, task.priority, deadline_str])
+        
+    output.seek(0)
+    return StreamingResponse(
+        output, 
+        media_type="text/csv", 
+        headers={"Content-Disposition": "attachment; filename=unitasker_tasks.csv"}
+    )
