@@ -1,14 +1,16 @@
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from database.database import engine, Base
 from routers import tasks
 
-# Створюємо таблиці в базі даних при запуску
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="UniTasker API")
 
-# Підключаємо маршрути
+# Підключаємо статичні файли (CSS та JS)
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
 app.include_router(tasks.router)
 
 @app.get("/")

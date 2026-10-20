@@ -1,131 +1,88 @@
 <!DOCTYPE html>
-<html lang="uk">
+<html lang="uk" data-theme="light">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>UniTasker Kanban</title>
-    <style>
-        body { font-family: 'Times New Roman', serif; background-color: #f3f4f6; margin: 0; padding: 20px; }
-        h1 { text-align: center; color: #333; }
-        .controls { text-align: center; margin-bottom: 20px; }
-        .board { display: flex; gap: 20px; justify-content: center; }
-        .column { background: #ebecf0; padding: 15px; border-radius: 8px; width: 30%; min-height: 400px; }
-        .column h3 { text-align: center; margin-top: 0; }
-        .task { background: white; padding: 15px; margin-bottom: 10px; border-radius: 5px; box-shadow: 0 1px 3px rgba(0,0,0,0.12); cursor: grab; position: relative; }
-        .task:active { cursor: grabbing; }
-        .delete-btn { background: #ff4757; color: white; border: none; border-radius: 3px; cursor: pointer; padding: 5px 10px; margin-top: 10px; font-family: 'Times New Roman', serif; width: 100%; }
-        input, select { padding: 10px; font-family: 'Times New Roman', serif; border: 1px solid #ccc; border-radius: 4px; margin-right: 5px; }
-        button { padding: 10px 15px; background: #2ed573; color: white; border: none; border-radius: 4px; cursor: pointer; font-family: 'Times New Roman', serif; }
-        .export-btn { background: #3742fa; text-decoration: none; display: inline-block; margin-top: 10px; }
-        .tag { font-size: 12px; padding: 2px 6px; border-radius: 10px; color: white; display: inline-block; margin-bottom: 5px; }
-    </style>
+    <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
-    <h1>UniTasker</h1>
-    
-    <div class="controls">
-        <form id="taskForm" style="display: inline-block;">
-            <input type="text" id="title" placeholder="Назва нового завдання..." required style="width: 250px;">
-            <select id="priority">
-                <option value="Низький">🟢 Низький</option>
-                <option value="Середній" selected>🟠 Середній</option>
-                <option value="Високий">🔴 Високий</option>
-            </select>
-            <input type="date" id="deadline">
-            <button type="submit">Додати</button>
-        </form>
-        <br>
-        <a href="/tasks/export/csv" class="export-btn" download>
-            <button style="background: #3742fa;">Експортувати в CSV</button>
-        </a>
+
+    <header>
+        <div class="logo">UniTasker</div>
+        <div class="header-actions">
+            <input type="text" id="searchInput" class="search-input" placeholder="Пошук за назвою чи тегами..." onkeyup="filterTasks()">
+            <button class="btn btn-primary" onclick="openModal()">+ Створити завдання</button>
+            <a href="/tasks/export/csv" class="btn btn-secondary">Експорт CSV</a>
+            <button class="btn btn-theme" id="themeToggleBtn" onclick="toggleTheme()">Темна тема</button>
+        </div>
+    </header>
+
+    <div class="board-container">
+        <div class="board">
+            <div class="column" id="TODO" ondrop="drop(event)" ondragover="allowDrop(event)">
+                <div class="column-header">
+                    <h3>TODO</h3>
+                    <span class="task-count" id="count-TODO">0</span>
+                </div>
+            </div>
+            <div class="column" id="IN PROGRESS" ondrop="drop(event)" ondragover="allowDrop(event)">
+                <div class="column-header">
+                    <h3>IN PROGRESS</h3>
+                    <span class="task-count" id="count-IN PROGRESS">0</span>
+                </div>
+            </div>
+            <div class="column" id="DONE" ondrop="drop(event)" ondragover="allowDrop(event)">
+                <div class="column-header">
+                    <h3>DONE</h3>
+                    <span class="task-count" id="count-DONE">0</span>
+                </div>
+            </div>
+        </div>
     </div>
 
-    <div class="board">
-        <div class="column" id="TODO" ondrop="drop(event)" ondragover="allowDrop(event)">
-            <h3>TODO</h3>
-        </div>
-        <div class="column" id="IN PROGRESS" ondrop="drop(event)" ondragover="allowDrop(event)">
-            <h3>IN PROGRESS</h3>
-        </div>
-        <div class="column" id="DONE" ondrop="drop(event)" ondragover="allowDrop(event)">
-            <h3>DONE</h3>
+    <!-- Модальне вікно створення завдання -->
+    <div class="modal-overlay" id="modalOverlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>Нове завдання</h2>
+                <button class="close-btn" onclick="closeModal()">&times;</button>
+            </div>
+            <form id="taskForm">
+                <div class="form-group">
+                    <label>Назва завдання</label>
+                    <input type="text" id="title" class="form-control" placeholder="Наприклад: Підготувати звіт з ЛР" required>
+                </div>
+                <div class="form-group">
+                    <label>Опис (список підзадач)</label>
+                    <textarea id="description" class="form-control" rows="3" placeholder="- Пункт 1&#10;- Пункт 2"></textarea>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Пріоритет</label>
+                        <select id="priority" class="form-control">
+                            <option value="Низький">Низький</option>
+                            <option value="Середній" selected>Середній</option>
+                            <option value="Високий">Високий</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Дедлайн</label>
+                        <input type="date" id="deadline" class="form-control">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Теги (через кому)</label>
+                    <input type="text" id="tags" class="form-control" placeholder="ЛР, Python, Wokwi">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal()">Скасувати</button>
+                    <button type="submit" class="btn btn-primary">Зберегти</button>
+                </div>
+            </form>
         </div>
     </div>
 
-    <script>
-        async function loadTasks() {
-            const res = await fetch('/tasks/');
-            const tasks = await res.json();
-            
-            ['TODO', 'IN PROGRESS', 'DONE'].forEach(status => {
-                document.getElementById(status).innerHTML = `<h3>${status}</h3>`;
-            });
-
-            tasks.forEach(task => {
-                const colId = ['TODO', 'IN PROGRESS', 'DONE'].includes(task.status) ? task.status : 'TODO';
-                const col = document.getElementById(colId);
-                
-                let priorityColor = task.priority === 'Високий' ? '#ff4757' : task.priority === 'Середній' ? '#ffa502' : '#2ed573';
-                let deadlineText = task.deadline ? new Date(task.deadline).toLocaleDateString('uk-UA') : 'Без дедлайну';
-                let priorityText = task.priority || 'Не вказано';
-
-                const div = document.createElement('div');
-                div.className = 'task';
-                div.draggable = true;
-                div.id = task.id;
-                div.ondragstart = drag;
-                div.innerHTML = `
-                    <span class="tag" style="background: ${priorityColor};">${priorityText}</span><br>
-                    <strong>${task.title}</strong><br>
-                    <span style="font-size: 13px; color: #555;">⏳ Дедлайн: ${deadlineText}</span><br>
-                    <button class="delete-btn" onclick="deleteTask('${task.id}')">Видалити</button>
-                `;
-                col.appendChild(div);
-            });
-        }
-
-        document.getElementById('taskForm').onsubmit = async (e) => {
-            e.preventDefault();
-            const title = document.getElementById('title').value;
-            const priority = document.getElementById('priority').value;
-            const deadline = document.getElementById('deadline').value;
-
-            const payload = { title: title, priority: priority };
-            if (deadline) {
-                payload.deadline = deadline + "T00:00:00"; // Форматування дати для бази
-            }
-
-            await fetch('/tasks/', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(payload)
-            });
-            document.getElementById('title').value = '';
-            document.getElementById('deadline').value = '';
-            loadTasks();
-        };
-
-        async function deleteTask(id) {
-            await fetch(`/tasks/${id}`, { method: 'DELETE' });
-            loadTasks();
-        }
-
-        function allowDrop(ev) { ev.preventDefault(); }
-        function drag(ev) { ev.dataTransfer.setData("text", ev.target.id); }
-
-        async function drop(ev) {
-            ev.preventDefault();
-            const taskId = ev.dataTransfer.getData("text");
-            const targetColumn = ev.target.closest('.column');
-            if (!targetColumn) return;
-            targetColumn.appendChild(document.getElementById(taskId));
-            await fetch(`/tasks/${taskId}`, {
-                method: 'PUT',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({status: targetColumn.id})
-            });
-        }
-
-        loadTasks();
-    </script>
+    <script src="/static/js/app.js"></script>
 </body>
 </html>

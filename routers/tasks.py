@@ -51,20 +51,20 @@ def update_status(task_id: str, task_update: TaskUpdate, db: Session = Depends(g
 def export_tasks_csv(db: Session = Depends(get_db)):
     tasks = db.query(DBTask).all()
     output = io.StringIO()
-    
-    # BOM-маркер для правильного читання кирилиці
     output.write('\ufeff') 
-    
-    # Вказуємо крапку з комою як розділювач для Excel
     writer = csv.writer(output, delimiter=';')
-    writer.writerow(["Дата створення", "Назва", "Статус", "Пріоритет", "Дедлайн"])
+    writer.writerow(["Дата створення", "Назва", "Опис", "Статус", "Пріоритет", "Теги", "Дедлайн"])
     
     for task in tasks:
         deadline_str = task.deadline.strftime("%Y-%m-%d") if task.deadline else "Немає"
-        # Форматуємо дату створення (наприклад: 2026-10-19 14:30)
         created_str = task.created_at.strftime("%Y-%m-%d %H:%M")
         
-        writer.writerow([created_str, task.title, task.status, task.priority, deadline_str])
+        # Очищаємо переноси рядків для CSV, замінюючи їх на роздільник " | "
+        clean_desc = ""
+        if task.description:
+            clean_desc = task.description.replace("\r\n", " | ").replace("\n", " | ").strip()
+            
+        writer.writerow([created_str, task.title, clean_desc, task.status, task.priority, task.tags or "", deadline_str])
         
     output.seek(0)
     return StreamingResponse(

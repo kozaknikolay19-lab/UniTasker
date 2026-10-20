@@ -11,8 +11,10 @@ class TaskCreate(BaseModel):
 class TaskResponse(BaseModel):
     id: str
     title: str
+    description: str | None = None
     status: str
     priority: str | None = None
+    tags: str | None = None
     deadline: datetime | None = None
     created_at: datetime
     
