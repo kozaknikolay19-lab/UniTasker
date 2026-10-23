@@ -7,12 +7,12 @@
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
-
     <header>
         <div class="logo">UniTasker</div>
         <div class="header-actions">
             <input type="text" id="searchInput" class="search-input" placeholder="Пошук за назвою чи тегами..." onkeyup="filterTasks()">
-            <button class="btn btn-primary" onclick="openModal()">+ Створити завдання</button>
+            <button class="btn btn-primary" onclick="openModal()">+ Створити</button>
+            <button class="btn btn-secondary" id="todayFilterBtn" onclick="toggleTodayView()"> Сьогодні</button>
             <a href="/tasks/export/csv" class="btn btn-secondary">Експорт CSV</a>
             <button class="btn btn-theme" id="themeToggleBtn" onclick="toggleTheme()">Темна тема</button>
         </div>
@@ -41,11 +41,11 @@
         </div>
     </div>
 
-    <!-- Модальне вікно створення завдання -->
+    <!-- Модальне вікно -->
     <div class="modal-overlay" id="modalOverlay">
         <div class="modal">
             <div class="modal-header">
-                <h2>Нове завдання</h2>
+                <h2 id="modalTitle">Нове завдання</h2>
                 <button class="close-btn" onclick="closeModal()">&times;</button>
             </div>
             <form id="taskForm">

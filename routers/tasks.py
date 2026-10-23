@@ -39,13 +39,18 @@ def delete_task(task_id: str, db: Session = Depends(get_db)):
     return {"message": "Task deleted successfully"}
 
 @router.put("/{task_id}")
-def update_status(task_id: str, task_update: TaskUpdate, db: Session = Depends(get_db)):
+def update_task(task_id: str, task_update: TaskUpdate, db: Session = Depends(get_db)):
     db_task = db.query(DBTask).filter(DBTask.id == task_id).first()
     if not db_task:
         raise HTTPException(status_code=404, detail="Task not found")
-    db_task.status = task_update.status
+    
+    # Оновлюємо лише ті поля, які були передані у запиті
+    update_data = task_update.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(db_task, key, value)
+        
     db.commit()
-    return {"message": "Status updated"}
+    return {"message": "Task updated"}
 
 @router.get("/export/csv")
 def export_tasks_csv(db: Session = Depends(get_db)):
@@ -58,12 +63,7 @@ def export_tasks_csv(db: Session = Depends(get_db)):
     for task in tasks:
         deadline_str = task.deadline.strftime("%Y-%m-%d") if task.deadline else "Немає"
         created_str = task.created_at.strftime("%Y-%m-%d %H:%M")
-        
-        # Очищаємо переноси рядків для CSV, замінюючи їх на роздільник " | "
-        clean_desc = ""
-        if task.description:
-            clean_desc = task.description.replace("\r\n", " | ").replace("\n", " | ").strip()
-            
+        clean_desc = task.description.replace("\r\n", " | ").replace("\n", " | ").strip() if task.description else ""
         writer.writerow([created_str, task.title, clean_desc, task.status, task.priority, task.tags or "", deadline_str])
         
     output.seek(0)

@@ -1,6 +1,8 @@
 let allTasks = [];
+let currentEditId = null;
+let todayViewActive = false;
 
-// Перемикач темної/світлої теми
+// Ініціалізація теми
 function initTheme() {
     const savedTheme = localStorage.getItem('theme') || 'light';
     document.documentElement.setAttribute('data-theme', savedTheme);
@@ -17,28 +19,60 @@ function toggleTheme() {
 
 function updateThemeBtnText(theme) {
     const btn = document.getElementById('themeToggleBtn');
-    if (btn) {
-        btn.innerText = theme === 'dark' ? 'Світла тема' : 'Темна тема';
-    }
+    if (btn) btn.innerText = theme === 'dark' ? 'Світла тема' : 'Темна тема';
 }
 
-// Керування модальним вікном
-function openModal() { 
+// Управління модальним вікном (Створення / Редагування)
+function openModal(taskId = null) {
+    const modalTitle = document.getElementById('modalTitle');
+    
+    if (taskId) {
+        currentEditId = taskId;
+        modalTitle.innerText = 'Редагувати завдання';
+        const task = allTasks.find(t => t.id === taskId);
+        
+        document.getElementById('title').value = task.title;
+        document.getElementById('description').value = task.description || '';
+        document.getElementById('priority').value = task.priority || 'Середній';
+        document.getElementById('tags').value = task.tags || '';
+        document.getElementById('deadline').value = task.deadline ? task.deadline.split('T')[0] : '';
+    } else {
+        currentEditId = null;
+        modalTitle.innerText = 'Нове завдання';
+        document.getElementById('taskForm').reset();
+    }
+    
     document.getElementById('modalOverlay').style.display = 'flex'; 
 }
 
 function closeModal() { 
     document.getElementById('modalOverlay').style.display = 'none'; 
     document.getElementById('taskForm').reset();
+    currentEditId = null;
 }
 
-// Завантаження та відображення завдань
+// Вигляд "Сьогодні"
+function toggleTodayView() {
+    todayViewActive = !todayViewActive;
+    const btn = document.getElementById('todayFilterBtn');
+    if (todayViewActive) {
+        btn.classList.add('btn-primary');
+        btn.classList.remove('btn-secondary');
+    } else {
+        btn.classList.add('btn-secondary');
+        btn.classList.remove('btn-primary');
+    }
+    filterTasks();
+}
+
+// Завантаження завдань
 async function loadTasks() {
     const res = await fetch('/tasks/');
     allTasks = await res.json();
-    renderTasks(allTasks);
+    filterTasks();
 }
 
+// Рендер карток
 function renderTasks(tasksToRender) {
     ['TODO', 'IN PROGRESS', 'DONE'].forEach(status => {
         const col = document.getElementById(status);
@@ -58,8 +92,7 @@ function renderTasks(tasksToRender) {
 
         let priorityColor = task.priority === 'Високий' ? '#ef4444' : task.priority === 'Середній' ? '#f59e0b' : '#10b981';
         let deadlineText = task.deadline ? `Дедлайн: ${new Date(task.deadline).toLocaleDateString('uk-UA')}` : 'Без дедлайну';
-        let priorityText = task.priority || 'Звичайний';
-
+        
         let tagsHtml = '';
         if (task.tags) {
             task.tags.split(',').forEach(tag => {
@@ -77,8 +110,11 @@ function renderTasks(tasksToRender) {
         div.ondragstart = drag;
         div.innerHTML = `
             <div class="task-top">
-                <span class="priority-badge" style="background: ${priorityColor}">${priorityText}</span>
-                <button class="delete-btn" onclick="deleteTask('${task.id}')">Видалити</button>
+                <span class="priority-badge" style="background: ${priorityColor}">${task.priority || 'Звичайний'}</span>
+                <div>
+                    <button class="delete-btn" style="margin-right: 5px; color: #3b82f6;" onclick="openModal('${task.id}')">✏️</button>
+                    <button class="delete-btn" onclick="deleteTask('${task.id}')">✕</button>
+                </div>
             </div>
             <div class="task-title">${task.title}</div>
             ${descHtml}
@@ -96,18 +132,36 @@ function renderTasks(tasksToRender) {
     });
 }
 
+// Фільтрація (Пошук + Сьогодні)
 function filterTasks() {
     const query = document.getElementById('searchInput').value.toLowerCase();
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+
     const filteredTasks = allTasks.filter(task => {
         const titleMatch = task.title.toLowerCase().includes(query);
         const descMatch = task.description && task.description.toLowerCase().includes(query);
         const tagsMatch = task.tags && task.tags.toLowerCase().includes(query);
-        return titleMatch || descMatch || tagsMatch;
+        const matchesSearch = titleMatch || descMatch || tagsMatch;
+        
+        let matchesToday = true;
+        if (todayViewActive) {
+            if (!task.deadline) {
+                matchesToday = false; 
+            } else {
+                const taskDate = new Date(task.deadline);
+                // Показуємо ті, що прострочені або на сьогодні, виключаючи вже готові
+                matchesToday = taskDate <= today && task.status !== 'DONE';
+            }
+        }
+        
+        return matchesSearch && matchesToday;
     });
+    
     renderTasks(filteredTasks);
 }
 
-// Форма додавання
+// Збереження форми (Створення або Оновлення)
 document.getElementById('taskForm').onsubmit = async (e) => {
     e.preventDefault();
     const payload = { 
@@ -116,14 +170,23 @@ document.getElementById('taskForm').onsubmit = async (e) => {
         tags: document.getElementById('tags').value || null,
         priority: document.getElementById('priority').value
     };
-    const deadline = document.getElementById('deadline').value;
-    if (deadline) payload.deadline = deadline + "T00:00:00";
+    
+    const deadlineVal = document.getElementById('deadline').value;
+    payload.deadline = deadlineVal ? deadlineVal + "T00:00:00" : null;
 
-    await fetch('/tasks/', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify(payload)
-    });
+    if (currentEditId) {
+        await fetch(`/tasks/${currentEditId}`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+    } else {
+        await fetch('/tasks/', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+    }
     
     closeModal();
     loadTasks();
@@ -134,7 +197,6 @@ async function deleteTask(id) {
     loadTasks();
 }
 
-// Drag and Drop
 function allowDrop(ev) { ev.preventDefault(); }
 function drag(ev) { ev.dataTransfer.setData("text", ev.target.id); }
 
@@ -156,6 +218,5 @@ async function drop(ev) {
     loadTasks();
 }
 
-// Ініціалізація
 initTheme();
 loadTasks();
